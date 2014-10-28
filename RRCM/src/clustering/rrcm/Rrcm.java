@@ -13,7 +13,7 @@ public class Rrcm
 	public static final int n = 500;
 	public static final int noOfClusters = 5;
 	public static final float epsolon = 0.5f;
-	public static final float tao =0.1f;
+	public static final float tao =0.9f;
 	public static final float wlower = 0.7f;
 	public static final float wupper = 1 - wlower;
 	public static final int m = 2;	
@@ -285,86 +285,53 @@ public class Rrcm
 	
 	private static void determineNewCentroid()
 	{
-              System.out.println("Cluster Centroids: \n");
+        System.out.println("Cluster Centroids: \n");
 		for(int i=0;i<noOfClusters;i++)
 		{
-		ArrayList<Float> lowerApproxComponent = new ArrayList<Float>();
-		ArrayList<Float> upperApproxComponent = new ArrayList<Float>();
-                    for(int k=0;k<datapoints.get(0).point.size();k++)
+			Cluster currCluster = clusters.get(i);
+			
+			ArrayList<Float> lowerApproxComponent = new ArrayList<Float>();
+			ArrayList<Float> upperApproxComponent = new ArrayList<Float>();
+            for(int k=0;k<datapoints.get(0).point.size();k++)
 		    {
                     lowerApproxComponent.add(0.0f);
-		    upperApproxComponent.add(0.0f);
+                    upperApproxComponent.add(0.0f);
 			}
                
-			int lowerApproxCount=0,uc=0;
-                        float upperApproxCount=0.0f;
-			for(int j=0;j<datapoints.size();j++)
+			for(int j=0;j<currCluster.lowerApprox.size();j++)
 			{
-				if(membership[i][j]==1.0f)
+				DataPoint currDataPoint = currCluster.lowerApprox.get(j);
+				for(int k=0;k<datapoints.get(j).point.size();k++)
 				{
-					lowerApproxCount++;
-					for(int k=0;k<datapoints.get(j).point.size();k++)
-					{
-					lowerApproxComponent.set(k, lowerApproxComponent.get(k)+datapoints.get(j).point.get(k));
-					}
-				}
-				else if(membership[i][j]>0.0f && membership[i][j]<1.0f)
-				{
-                                    uc++;
-					upperApproxCount+=(float)Math.pow(membership[i][j], m);
-					for(int k=0;k<datapoints.get(j).point.size();k++)
-					{
-						upperApproxComponent.set(k, upperApproxComponent.get(k)+(float)Math.pow(membership[i][j], m)*datapoints.get(j).point.get(k));
-					}
+					lowerApproxComponent.set(k, lowerApproxComponent.get(k)+currDataPoint.point.get(k));
 				}
 			}
-			pointCount[i][0]= lowerApproxCount;
-                        pointCount[i][1]= uc;
-                        pointCount[i][2]=lowerApproxCount+uc;
-			ArrayList<Float> clusterCentroid = clusters.get(i).centroid.point;
+			for(int j=0;j<currCluster.upperApprox.size();j++)
+			{
+				DataPoint currDataPoint = currCluster.upperApprox.get(j);
+				for(int k=0;k<datapoints.get(j).point.size();k++)
+				{
+					upperApproxComponent.set(k, upperApproxComponent.get(k)+currDataPoint.point.get(k));
+				}
+			}
+				
+			
+			pointCount[i][0]= currCluster.lowerApprox.size();
+            pointCount[i][1]= currCluster.upperApprox.size()-currCluster.lowerApprox.size();
+            pointCount[i][2]=currCluster.upperApprox.size();
+            
 			for(int k=0;k<datapoints.get(0).point.size();k++)
 			{
-				clusterCentroid.set(k,0.0f);	
-			}
-                /*if(lowerApproxCount==0&&upperApproxCount==0)
-                {
-                     for(int k = 0;k<clusterCentroid.size();k++)
-				{
-				clusterCentroid.set(k,999.0f);
-				}  
-                }
-                else
-                {*/
-			if(lowerApproxCount==0)
+				currCluster.centroid.point.set(k,0.0f);	
+			}	
+			for(int k = 0;k<currCluster.centroid.point.size();k++)
 			{
-				for(int k = 0;k<clusterCentroid.size();k++)
-				{
-                                
-					clusterCentroid.set(k,upperApproxComponent.get(k)/upperApproxCount);
-				}
-			}
-			else if(upperApproxCount==0)
-			{
-				for(int k = 0;k<clusterCentroid.size();k++)
-				{
-                                   
-					clusterCentroid.set(k,lowerApproxComponent.get(k)/lowerApproxCount);
-				}
-			}
-			else
-			{
-				for(int k = 0;k<clusterCentroid.size();k++)
-				{
-				clusterCentroid.set(k,wlower*lowerApproxComponent.get(k)/lowerApproxCount+wupper*upperApproxComponent.get(k)/upperApproxCount);
-				}
-			}
-                //}
-                
-			System.out.println(clusterCentroid);
-                        }
-		
-                System.out.println();
-                }
+				currCluster.centroid.point.set(k,wlower*lowerApproxComponent.get(k)/currCluster.lowerApprox.size()+wupper*upperApproxComponent.get(k)/currCluster.upperApprox.size());
+			}  
+			System.out.println(currCluster.centroid.point);
+        }
+        System.out.println();
+    }
 	
 	
 	private static boolean stopSignal()
