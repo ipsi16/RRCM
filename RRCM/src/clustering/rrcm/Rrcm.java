@@ -343,7 +343,6 @@ public class Rrcm
 			{
 		        if(Math.abs(oldMembership[i][j]-membership[i][j])>epsolon)
 		        {
-		        	System.out.println(i+" "+j);
 		        	return false;
 		        }
 			}
