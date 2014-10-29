@@ -6,6 +6,8 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.ArrayList;
 
+import clustering.rrcm.DataPoint;
+
 
 public class Rrcm
 {
@@ -13,16 +15,17 @@ public class Rrcm
 	public static final int n = 500;
 	public static final int noOfClusters = 5;
 	public static final float epsolon = 0.5f;
-	public static final float tao =0.9f;
+	public static final float tao =1.5f;
 	public static final float wlower = 0.7f;
 	public static final float wupper = 1 - wlower;
 	public static final int m = 2;	
 	public static ArrayList<Cluster> clusters = new ArrayList<Cluster>();
 	public static ArrayList<DataPoint> datapoints = new ArrayList<DataPoint>();
 	public static ArrayList<DataPoint> orgDatapoints = new ArrayList<DataPoint>();
+	public static float[][] distance = new float[n][noOfClusters];
 	public static float[][] membership = new float[noOfClusters][n];
 	public static float[][] oldMembership = new float[noOfClusters][n];
-	public static float[][] copyMembership = new float[noOfClusters][n];
+	public static float[][] copyDistance = new float[n][noOfClusters];
 	public static int[][] pointCount = new int[noOfClusters][3];
 	
 	public static void main(String[] args)
@@ -33,7 +36,7 @@ public class Rrcm
 			fetchData();
 			
 		} catch (NumberFormatException e) {
-			System.err.println("Invalid number entries in the file\nFile should only contan comma seperated numbers");
+			System.err.println("Invalid number entries in the file\nFile should only contain comma seperated numbers");
 			return;
 		}
 		if(datapoints.size()<noOfClusters)
@@ -53,7 +56,7 @@ public class Rrcm
 		}		
 		
 		//calculate membership value of each point for each clusters
-		calculateMembership();
+		calculateDistance();
 		
 		//allocate each point to upper or lower approx of the respective clusters
 		allocateClusters();
@@ -61,13 +64,13 @@ public class Rrcm
 		while(!stopSignal())
 		{
 			determineNewCentroid();
-			calculateMembership();
+			calculateDistance();
 			allocateClusters();
 		}
 		
 		//Final Output
         System.out.println("Cluster Output : \n");
-        for(int i=0;i<noOfClusters;i++)
+        /*for(int i=0;i<noOfClusters;i++)
         {
              System.out.print("Cluster "+(i+1)+" : ");
              for(int j=0;j<orgDatapoints.size();j++)
@@ -82,7 +85,7 @@ public class Rrcm
                System.out.println();
          }
          System.out.println();
-	
+	*/
          System.out.println("Cluster  Low   Upper   Total");
          for(int i=0;i<noOfClusters;i++)
          {
@@ -133,64 +136,18 @@ public class Rrcm
 		
 	}
 	
-	
-	private static void calculateMembership()
+	private static void calculateDistance()
 	{
-		for(int i=0; i < noOfClusters; i++)
+              
+		for(int i=0; i<datapoints.size() ; i++)
 		{
-			for(int j=0; j<datapoints.size();j++)
+			for(int j=0;j<noOfClusters;j++)
 			{
-				oldMembership[i][j]= membership[i][j];
+				distance[i][j] = DataPoint.distanceBetween(datapoints.get(i),clusters.get(j).centroid );
 			}
 		}
-	
-		
-		for(int i = 0; i < noOfClusters; i++)
-		{
-			for(int j=0; j<datapoints.size();j++)
-			{
-				membership[i][j]=-1;
-			}
-		}
-				
-		for(int i = 0; i < noOfClusters; i++)
-		{
-			for(int j=0; j<datapoints.size();j++)
-			{
-				float dij = DataPoint.distanceBetween(clusters.get(i).centroid,datapoints.get(j) );
-				
-				if(dij==0.0f)
-				{
-					membership[i][j]= 1;
-					for(int h=0;h<noOfClusters;h++)
-					{
-						if(h!=i)
-						{	
-							membership[h][j]=0; 
-						}
-					}
-				}
-				else if(membership[i][j]==-1) 
-				{
-					membership[i][j]=0;
-					for(int k = 0; k < noOfClusters; k++)
-					{
-						membership[i][j]+=Math.pow((dij/DataPoint.distanceBetween(datapoints.get(j),clusters.get(k).centroid)), 2.0/(m-1));
-						
-					}
-                                        if(membership[i][j]!=0)
-					membership[i][j] = 1/membership[i][j];
-				}
-				
-			}
-		}
-                 
 	}
-
-	/*
-	 * *The original paper (Georg Peters) has used distance as the standard for comparison
-	 * This code uses membership function instead
-	 */
+	
 	private static void allocateClusters()
 	{		
 		//initialise clusters
@@ -201,84 +158,100 @@ public class Rrcm
 			cluster.memberDataPoints = new ArrayList<DataPoint>();
 		}
 		
-		//Create a copy of membership matrix for modification needed to be done on it for the algo
-		for(int i=0; i < noOfClusters; i++)
+		//update old membership matrix to current membership matrix before it is recalculated
+		for(int i=0; i<noOfClusters ; i++)
 		{
-			for(int j=0; j<datapoints.size();j++)
+			for(int j=0;j<datapoints.size();j++)
 			{
-				copyMembership[i][j]= membership[i][j];
+				oldMembership[i][j]=membership[i][j]; 
+			}
+		}
+		
+		//Create a copy of distance matrix for modification needed to be done on it for the algo
+		for(int i=0; i < datapoints.size(); i++)
+		{
+			for(int j=0; j<noOfClusters;j++)
+			{
+				copyDistance[i][j]= distance[i][j];
 			}
 		}
 		
 		//allocate at least one point to each cluster on the basis of the closest datapoint to each cluster,ie, min distance => max  membership
 		for(int k=0; k < noOfClusters; k++)
 		{	
-			//finding <cluster,datapoint> pair with maximum membership
-			int maxClusterPos=0, maxDPPos=0;
-			for(int i=0; i < noOfClusters; i++)
+			//finding <cluster,datapoint> pair with minimum distance
+			int minDPPos=0,minClusterPos=0;
+			for(int i=0; i < datapoints.size(); i++)
 			{
-				for(int j=0; j<datapoints.size();j++)
+				for(int j=0; j<noOfClusters;j++)
 				{
-					if(copyMembership[i][j]>copyMembership[maxClusterPos][maxDPPos])
+					if(copyDistance[i][j]<copyDistance[minDPPos][minClusterPos])
 					{
-						maxClusterPos=i;	maxDPPos=j;
+						minDPPos=i;	minClusterPos=j;
 					}
 				}
 			}
 			
 			//adding corresponding datapoint to lower approx (& upper approx) of corresponding cluster
-			clusters.get(maxClusterPos).lowerApprox.add(datapoints.get(maxDPPos));
-			clusters.get(maxClusterPos).upperApprox.add(datapoints.get(maxDPPos));
+			clusters.get(minClusterPos).lowerApprox.add(datapoints.get(minDPPos));
+			clusters.get(minClusterPos).upperApprox.add(datapoints.get(minDPPos));
+			membership[minClusterPos][minDPPos]=1.0f;
 			
 			//removing the corresponding datapoint for consideration
 			for(int i=0; i<noOfClusters;i++)
 			{
-				copyMembership[i][maxDPPos]=-1;
+				copyDistance[minDPPos][i]=1000.0f;
 			}
 			//removing the corresponding cluster for consideration
 			for(int i=0; i<datapoints.size();i++)
 			{
-				copyMembership[maxClusterPos][i]=-1;
+				copyDistance[i][minClusterPos]=1000.0f;
 			}
-			
 		}
 		
 		//allocating rest of the datapoints to the clusters
 		for(int i=0;i<datapoints.size();i++)
 		{
-			if(copyMembership[0][i]!=-1)			//ie, if that datapoint has not been allocated already to the lower approx of some cluster
+			if(copyDistance[i][0]!=-1)			//ie, if that datapoint has not been allocated already to the lower approx of some cluster
 			{
-				int max2Pos,maxPos=0;
-				
-				//finding closest jth cluster for ith point
-				for(int j=0;j<noOfClusters;j++)
-				{
-					if(membership[j][i]>membership[maxPos][i])
-						maxPos = j;
-				}
-				
-				//finding 2nd closest cluster for ith point
-				if(maxPos==0)
-				 max2Pos = 1;
-				else max2Pos =0;
-				for(int j=0;j<noOfClusters;j++)
-				{
-					if(j!=maxPos && membership[j][i]>membership[max2Pos][i])
-						max2Pos = j;
-				}
-				
-				if(membership[maxPos][i]/membership[max2Pos][i]>tao)
-				{																								
-					clusters.get(maxPos).lowerApprox.add(datapoints.get(i));			//adding ith datapoint to lower approx (& upper approx) of cluster with max membership
-					clusters.get(maxPos).upperApprox.add(datapoints.get(i));
-				}
-				else
-				{
-					clusters.get(maxPos).upperApprox.add(datapoints.get(i));			//adding ith datapoint to upperer approx of cluster with highest and 2nd highest membership
-					clusters.get(max2Pos).upperApprox.add(datapoints.get(i));
-				}
-				
-				
+				int min2Pos,minPos=0;
+		        try
+		        {
+					//finding closest jth cluster for ith point
+					for(int j=0;j<noOfClusters;j++)
+					{
+						if(distance[i][j]<distance[i][minPos])
+							minPos = j;
+					}
+					
+					//finding 2nd closest cluster for jth point
+					if(minPos==0)
+					 min2Pos = 1;
+					else min2Pos =0;
+					for(int j=0;j<noOfClusters;j++)
+					{
+						if(j!=minPos && distance[i][j]<distance[i][min2Pos])
+							min2Pos = j;
+					}
+					
+					if(distance[i][min2Pos]/distance[i][minPos]>tao)
+					{
+						clusters.get(minPos).lowerApprox.add(datapoints.get(i));			//adding ith datapoint to lower approx (& upper approx) of cluster with min distance from the point
+						clusters.get(minPos).upperApprox.add(datapoints.get(i));
+						membership[minPos][i]=1.0f;
+					}
+					else
+					{
+						clusters.get(minPos).upperApprox.add(datapoints.get(i));			//adding ith datapoint to upperer approx of cluster with highest and 2nd highest membership
+						clusters.get(min2Pos).upperApprox.add(datapoints.get(i));
+						membership[minPos][i]=0.5f;
+						membership[min2Pos][i]=0.5f;
+					}
+		          }
+		          catch(ArrayIndexOutOfBoundsException ex)
+		          {
+		                System.out.println("i="+i+"minPos="+minPos);
+		          }
 			}
 		}
 	}
@@ -336,15 +309,12 @@ public class Rrcm
 	
 	private static boolean stopSignal()
 	{
-            
 		for(int i=0;i<noOfClusters;i++)
 		{
 			for(int j=0;j<datapoints.size();j++)
 			{
-		        if(Math.abs(oldMembership[i][j]-membership[i][j])>epsolon)
-		        {
-		        	return false;
-		        }
+				if(oldMembership[i][j]!=membership[i][j])
+					return false;
 			}
 		}
 		return true;
